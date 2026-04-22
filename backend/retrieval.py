@@ -19,7 +19,7 @@ logger = logging.getLogger("RAG-Retrieval")
 # Configuration
 PERSIST_DIRECTORY = "./chroma_db"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-SIMILARITY_THRESHOLD = 0.3  # Set to a reasonable threshold for production
+SIMILARITY_THRESHOLD = -1.0  # Temporarily disabled threshold to allow all top-K matches
 TOP_K = 5
 
 # Global variable to cache the vector store
