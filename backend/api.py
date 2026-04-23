@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 # Import existing RAG components
 from main import ingest_policy
-from retrieval import retrieve_policy_chunks, build_context
+from retrieval import retrieve_policy_chunks, build_context, delete_policy_from_db, list_indexed_policies
 from agent import InsuranceAgent
 from ranker import PolicyRanker
 
@@ -137,6 +137,67 @@ async def upload_policy(
         if file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=500, detail=f"Failed to process policy: {str(e)}")
+
+@app.get("/admin/policies", tags=["Admin"])
+async def list_policies(admin_verified: bool = Depends(verify_admin)):
+    """
+    List all unique policy file names indexed in the system.
+    """
+    try:
+        policies = list_indexed_policies()
+        return {"policies": policies}
+    except Exception as e:
+        logger.error(f"Failed to list policies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve policy list")
+
+@app.delete("/admin/delete-policy/{file_name}", tags=["Admin"])
+async def delete_policy(
+    file_name: str,
+    admin_verified: bool = Depends(verify_admin)
+):
+    """
+    Completely remove a policy from local storage and vector DB.
+    """
+    db_success = False
+    file_success = False
+    
+    # 1. Delete from ChromaDB
+    try:
+        db_success = delete_policy_from_db(file_name)
+    except Exception as e:
+        logger.error(f"DB deletion error for {file_name}: {str(e)}")
+
+    # 2. Delete from local storage
+    # Note: file_name in DB might be different from actual disk filename if we prefixed it
+    # We need to find the file in DATA_DIR that matches the suffix
+    try:
+        target_file = None
+        for f in DATA_DIR.glob(f"*{file_name}"):
+            if f.name.endswith(file_name):
+                target_file = f
+                break
+        
+        if target_file and target_file.exists():
+            target_file.unlink()
+            file_success = True
+            logger.info(f"Deleted file from storage: {target_file}")
+        else:
+            logger.warning(f"File {file_name} not found in {DATA_DIR}")
+            # We still consider it a partial success if it was in DB but not on disk
+            file_success = True 
+    except Exception as e:
+        logger.error(f"File deletion error for {file_name}: {str(e)}")
+
+    if not db_success and not file_success:
+        raise HTTPException(status_code=500, detail="Failed to delete policy from both DB and storage")
+    
+    return {
+        "message": "Policy deletion processed",
+        "details": {
+            "db_deleted": db_success,
+            "file_deleted": file_success
+        }
+    }
 
 @app.post("/recommend", response_model=RecommendationResponse, tags=["AI Services"])
 async def recommend_policy(profile: UserProfile):
