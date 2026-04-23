@@ -5,45 +5,80 @@ const AdminPanel = () => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [adminToken, setAdminToken] = useState('admin-secret-token'); // Default for dev
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [credentials, setCredentials] = useState({ username: 'admin', password: '' });
+  const [token, setToken] = useState('');
 
   const fetchPolicies = useCallback(async () => {
+    if (!token) return;
     try {
       const response = await fetch('http://localhost:8000/admin/policies', {
-        headers: { 'x-admin-token': adminToken }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
         setPolicies(data.policies || []);
+      } else if (response.status === 401) {
+        setIsLoggedIn(false);
+        setToken('');
       }
     } catch (error) {
       console.error("Failed to fetch policies:", error);
     }
-  }, [adminToken]);
+  }, [token]);
 
   useEffect(() => {
-    fetchPolicies();
-  }, [fetchPolicies]);
+    if (isLoggedIn) {
+      fetchPolicies();
+    }
+  }, [isLoggedIn, fetchPolicies]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('username', credentials.username);
+      formData.append('password', credentials.password);
+
+      const response = await fetch('http://localhost:8000/admin/login', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setToken(data.access_token);
+        setIsLoggedIn(true);
+        setMessage({ type: 'success', text: 'Logged in successfully!' });
+      } else {
+        setMessage({ type: 'error', text: 'Invalid username or password' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Login failed' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFileUpload = async (e) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file || !token) return;
 
     setLoading(true);
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:8000/upload-policy', {
+      const response = await fetch('http://localhost:8000/admin/upload-policy', {
         method: 'POST',
-        headers: { 'x-admin-token': adminToken },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Policy uploaded and indexed successfully!' });
         setFile(null);
-        // Reset file input
         e.target.reset();
         fetchPolicies();
       } else {
@@ -58,12 +93,13 @@ const AdminPanel = () => {
   };
 
   const handleDelete = async (fileName) => {
+    if (!token) return;
     if (!window.confirm(`Are you sure you want to delete ${fileName}? This will remove all embeddings from the vector DB.`)) return;
 
     try {
       const response = await fetch(`http://localhost:8000/admin/delete-policy/${fileName}`, {
         method: 'DELETE',
-        headers: { 'x-admin-token': adminToken }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
@@ -78,22 +114,52 @@ const AdminPanel = () => {
     }
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div className="admin-panel">
+        <div className="section-card">
+          <h2>🛡️ Admin Login</h2>
+          {message.text && (
+            <div className={`message-banner ${message.type}`}>
+              {message.type === 'success' ? '✅' : '❌'} {message.text}
+            </div>
+          )}
+          <form onSubmit={handleLogin} className="login-form">
+            <div className="field-group">
+              <label>Username</label>
+              <input 
+                type="text" 
+                value={credentials.username}
+                onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+                required
+              />
+            </div>
+            <div className="field-group">
+              <label>Password</label>
+              <input 
+                type="password" 
+                value={credentials.password}
+                onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+                required
+              />
+            </div>
+            <button type="submit" disabled={loading} className="admin-toggle-btn" style={{width: '100%', marginTop: '10px'}}>
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-panel">
       <div className="section-card">
-        <h2>🛡️ Admin Policy Management</h2>
-        
-        {/* Token Input for Security */}
-        <div className="admin-auth">
-          <label>Admin Token:</label>
-          <input 
-            type="password" 
-            value={adminToken} 
-            onChange={(e) => setAdminToken(e.target.value)}
-            placeholder="Enter admin secret"
-          />
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <h2>🛡️ Admin Policy Management</h2>
+          <button onClick={() => setIsLoggedIn(false)} className="delete-btn">Logout</button>
         </div>
-
+        
         {message.text && (
           <div className={`message-banner ${message.type}`}>
             {message.type === 'success' ? '✅' : '❌'} {message.text}

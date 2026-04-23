@@ -13,22 +13,24 @@ const ComparisonTable = ({ data }) => {
                     <thead>
                         <tr>
                             <th>Policy Name</th>
-                            <th>Premium</th>
-                            <th>Coverage</th>
+                            <th>Insurer</th>
+                            <th>Premium (Rs/yr)</th>
+                            <th>Cover Amount</th>
                             <th>Waiting Period</th>
-                            <th>Benefits</th>
-                            <th>Limitations</th>
+                            <th>Key Benefit</th>
+                            <th>Suitability Score</th>
                         </tr>
                     </thead>
                     <tbody>
                         {data.map((item, index) => (
                             <tr key={index}>
                                 <td className="font-bold">{renderValue(item.policy_name)}</td>
+                                <td>{renderValue(item.insurer)}</td>
                                 <td>{renderValue(item.premium)}</td>
-                                <td>{renderValue(item.coverage)}</td>
+                                <td>{renderValue(item.cover_amount)}</td>
                                 <td>{renderValue(item.waiting_period)}</td>
-                                <td>{renderValue(item.benefits)}</td>
-                                <td>{renderValue(item.limitations)}</td>
+                                <td>{renderValue(item.key_benefit)}</td>
+                                <td>{renderValue(item.suitability_score)}</td>
                             </tr>
                         ))}
                     </tbody>

@@ -50,7 +50,8 @@ export const getRecommendation = async (formData) => {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || "Failed to get recommendations");
+            console.error("Backend Error Detail:", errorData);
+            throw new Error(errorData.detail ? JSON.stringify(errorData.detail) : "Failed to get recommendations");
         }
 
         const data = await response.json();
@@ -77,7 +78,8 @@ export const sendChatMessage = async (sessionId, query) => {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || "Failed to send message");
+            console.error("Chat Error Detail:", errorData);
+            throw new Error(errorData.detail ? JSON.stringify(errorData.detail) : "Failed to send message");
         }
 
         return await response.json();

@@ -17,10 +17,10 @@ logging.basicConfig(
 logger = logging.getLogger("RAG-Retrieval")
 
 # Configuration
-PERSIST_DIRECTORY = "./chroma_db"
+PERSIST_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 SIMILARITY_THRESHOLD = -1.0  # Temporarily disabled threshold to allow all top-K matches
-TOP_K = 5
+TOP_K = 15
 
 # Global variable to cache the vector store
 _vector_store = None
@@ -51,53 +51,51 @@ def get_vector_store():
 def retrieve_policy_chunks(query: str) -> List[Dict[str, Any]]:
     """
     Retrieves the most relevant chunks from the vector database for a given query.
-    
-    Args:
-        query (str): The search query.
-        
-    Returns:
-        List[Dict[str, Any]]: A list of structured results with content, source, page, and score.
+    Ensures diversity of sources if possible.
     """
-    # 1. Validation
     if not query or not query.strip():
-        logger.warning("Empty query received. Returning empty list.")
         return []
 
-    # 2. Get Vector Store
     vector_store = get_vector_store()
     if not vector_store:
-        logger.error("Failed to retrieve vector store. Check your DB path and embeddings.")
         return []
 
     try:
-        # 3. Retrieval with Scores
-        # Note: similarity_search_with_relevance_scores is often preferred for thresholding
-        results = vector_store.similarity_search_with_relevance_scores(query, k=TOP_K)
+        # Increase k to get a pool of candidates for diversity
+        results = vector_store.similarity_search_with_relevance_scores(query, k=TOP_K * 2)
         
         formatted_results = []
-        seen_chunks = set() # For duplicate removal
+        seen_chunks = set()
+        source_counts = {} # Track how many chunks from each source
 
         for doc, score in results:
-            # 4. Score Threshold Filtering
             if score < SIMILARITY_THRESHOLD:
                 continue
 
             chunk_id = doc.metadata.get("chunk_id", doc.page_content)
+            source = doc.metadata.get("source", "Unknown")
             
-            # 5. Duplicate Removal
             if chunk_id in seen_chunks:
                 continue
-            seen_chunks.add(chunk_id)
+            
+            # Limit chunks per source to ensure variety in the final context
+            if source_counts.get(source, 0) >= 5:
+                continue
 
-            # 6. Structuring Output
+            seen_chunks.add(chunk_id)
+            source_counts[source] = source_counts.get(source, 0) + 1
+
             formatted_results.append({
                 "content": doc.page_content,
-                "source": doc.metadata.get("source", "Unknown"),
+                "source": source,
                 "page": doc.metadata.get("page", 0),
                 "score": round(float(score), 4)
             })
 
-        logger.info(f"Retrieved {len(formatted_results)} relevant chunks for query: '{query}'")
+            if len(formatted_results) >= TOP_K:
+                break
+
+        logger.info(f"Retrieved {len(formatted_results)} chunks from {len(source_counts)} unique sources.")
         return formatted_results
 
     except Exception as e:

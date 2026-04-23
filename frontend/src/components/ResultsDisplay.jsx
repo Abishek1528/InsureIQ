@@ -1,7 +1,6 @@
 import React from 'react';
 import ComparisonTable from './ComparisonTable';
 import CoverageTable from './CoverageTable';
-import RecommendationCard from './RecommendationCard';
 import Explanation from './Explanation';
 
 const ResultsDisplay = ({ data, loading, error }) => {
@@ -32,17 +31,17 @@ const ResultsDisplay = ({ data, loading, error }) => {
 
     return (
         <div className="results-wrapper">
-            {/* BONUS: Top Recommendation Card */}
-            <RecommendationCard recommendation={data.recommendation} />
-
             {/* Section 1: Comparison Table */}
             <ComparisonTable data={data.comparison_table} />
 
-            {/* Section 2: Coverage Table */}
-            <CoverageTable data={data.coverage_table} />
+            {/* Section 2: Coverage Detail Table */}
+            <CoverageTable data={data.coverage_detail_table} />
 
-            {/* Section 3: Explanation */}
-            <Explanation text={data.explanation} />
+            {/* Section 3: Why This Policy */}
+            <div className="section-card">
+                <h3>3. WHY THIS POLICY</h3>
+                <Explanation text={data.why_this_policy} />
+            </div>
         </div>
     );
 };
