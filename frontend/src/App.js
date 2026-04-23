@@ -1,23 +1,47 @@
-import logo from './logo.svg';
+import React, { useState } from 'react';
 import './App.css';
+import InsuranceForm from './components/InsuranceForm';
+import ResultsDisplay from './components/ResultsDisplay';
+import { getRecommendation } from './services/api';
 
 function App() {
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleFormSubmit = async (formData) => {
+    setLoading(true);
+    setError(null);
+    setResults(null);
+
+    try {
+      const data = await getRecommendation(formData);
+      setResults(data);
+    } catch (err) {
+      setError(err.message || 'Something went wrong while fetching recommendations.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+      <header className="header">
+        <h1>InsureIQ</h1>
+        <p>AI-Powered Personalized Insurance Recommendations</p>
       </header>
+
+      <main>
+        <InsuranceForm onSubmit={handleFormSubmit} loading={loading} />
+
+        {error && (
+          <div className="error-banner">
+            ⚠️ {error}
+          </div>
+        )}
+
+        {results && <ResultsDisplay data={results} />}
+      </main>
     </div>
   );
 }
