@@ -141,11 +141,147 @@
   overflow-x: auto;
 }
 
-.error-banner {
-  background-color: #fff5f5;
-  color: #c92a2a;
-  padding: 15px;
-  border-radius: 8px;
+/* Results UI Advanced Styles */
+.results-wrapper {
+  margin-top: 40px;
+  animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section-card {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  margin-bottom: 30px;
+  border-top: 4px solid #0984e3;
+}
+
+.section-card h3 {
+  margin-top: 0;
   margin-bottom: 20px;
+  color: #2d3436;
+  font-size: 1.2rem;
+  letter-spacing: 0.5px;
+}
+
+/* Tables */
+.table-responsive {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.data-table th {
+  background-color: #f8f9fa;
+  padding: 15px;
+  color: #636e72;
+  font-weight: 600;
+  border-bottom: 2px solid #eee;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  color: #2d3436;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.font-bold {
+  font-weight: 700;
+  color: #0984e3;
+}
+
+/* Verdict Colors */
+.verdict-cell {
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.verdict-good { color: #00b894; }
+.verdict-average { color: #fdcb6e; }
+.verdict-poor { color: #d63031; }
+
+/* Recommendation Card */
+.recommendation-card {
+  background: linear-gradient(135deg, #fff9db 0%, #fff3bf 100%);
+  border: 2px solid #fab005;
+  border-radius: 15px;
+  padding: 30px;
+  margin-bottom: 40px;
+  box-shadow: 0 6px 15px rgba(250, 176, 5, 0.15);
+  position: relative;
+}
+
+.badge {
+  background: #fab005;
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.recommendation-text {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #856404;
+  margin-top: 15px;
+  line-height: 1.5;
+}
+
+/* Explanation */
+.explanation-block {
+  padding: 10px 0;
+}
+
+.explanation-para {
+  line-height: 1.8;
+  color: #444;
+  font-size: 1.05rem;
+  margin-bottom: 1.5rem;
+  text-align: justify;
+}
+
+/* Status UI */
+.status-container {
   text-align: center;
+  padding: 50px;
+  background: white;
+  border-radius: 12px;
+  margin-top: 30px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #0984e3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-state {
+  border: 2px solid #ff7675;
+  color: #d63031;
 }
