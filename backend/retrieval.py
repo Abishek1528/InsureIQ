@@ -89,6 +89,8 @@ def retrieve_policy_chunks(query: str) -> List[Dict[str, Any]]:
                 "content": doc.page_content,
                 "source": source,
                 "page": doc.metadata.get("page", 0),
+                "policy_name": doc.metadata.get("policy_name", "Unknown"),
+                "insurer": doc.metadata.get("insurer", "Unknown"),
                 "score": round(float(score), 4)
             })
 
@@ -117,7 +119,8 @@ def build_context(chunks: List[Dict[str, Any]]) -> str:
 
     context_parts = []
     for i, chunk in enumerate(chunks, 1):
-        ref = f"[Source: {chunk['source']}, Page: {chunk['page']}]"
+        policy_info = f"Policy: {chunk.get('policy_name', 'Unknown')}, Insurer: {chunk.get('insurer', 'Unknown')}"
+        ref = f"[Source: {chunk['source']}, Page: {chunk['page']}, {policy_info}]"
         context_parts.append(f"--- Chunk {i} {ref} ---\n{chunk['content']}")
 
     return "\n\n".join(context_parts)
@@ -141,30 +144,70 @@ def delete_policy_from_db(file_name: str) -> bool:
         logger.error(f"Error deleting {file_name} from ChromaDB: {str(e)}")
         return False
 
-def list_indexed_policies() -> List[str]:
+def list_indexed_policies() -> List[Dict[str, Any]]:
     """
-    Returns a list of unique policy file names indexed in the vector store.
+    Returns a list of unique policies with metadata (source, upload_date, type, policy_name, insurer).
     """
     vector_store = get_vector_store()
     if not vector_store:
         return []
 
     try:
-        # Get all documents to extract unique sources
-        # In a very large DB, this might be slow; but for policy PDFs, it's efficient enough
         data = vector_store.get()
         if not data or 'metadatas' not in data:
             return []
         
-        sources = set()
+        unique_policies = {}
         for meta in data['metadatas']:
-            if 'source' in meta:
-                sources.add(meta['source'])
+            source = meta.get('source')
+            if source and source not in unique_policies:
+                unique_policies[source] = {
+                    "source": source,
+                    "policy_name": meta.get("policy_name", "Unknown"),
+                    "insurer": meta.get("insurer", "Unknown"),
+                    "upload_date": meta.get("upload_date", "Unknown"),
+                    "file_type": source.split('.')[-1].upper() if '.' in source else "UNKNOWN"
+                }
         
-        return sorted(list(sources))
+        return list(unique_policies.values())
     except Exception as e:
-        logger.error(f"Error listing policies from ChromaDB: {str(e)}")
+        logger.error(f"Error listing policies: {str(e)}")
         return []
+
+def update_policy_metadata(source: str, new_metadata: Dict[str, Any]) -> bool:
+    """
+    Updates metadata for all chunks of a specific policy source.
+    """
+    vector_store = get_vector_store()
+    if not vector_store:
+        return False
+
+    try:
+        # 1. Get all documents for this source
+        data = vector_store.get(where={"source": source})
+        if not data or not data['ids']:
+            return False
+
+        # 2. Update metadata for each chunk
+        for i in range(len(data['ids'])):
+            doc_id = data['ids'][i]
+            existing_meta = data['metadatas'][i]
+            existing_meta.update(new_metadata)
+            
+            # Re-add with same ID to update
+            # Chroma doesn't have a direct 'update' for metadata in the same way, 
+            # so we use add_documents with IDs or delete and re-add.
+            # Simplified for this requirement:
+            vector_store._collection.update(
+                ids=[doc_id],
+                metadatas=[existing_meta]
+            )
+            
+        logger.info(f"Updated metadata for {source}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating metadata: {str(e)}")
+        return False
 
 if __name__ == "__main__":
     # Set encoding for Windows console

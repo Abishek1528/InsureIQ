@@ -8,6 +8,8 @@ const AdminPanel = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [credentials, setCredentials] = useState({ username: 'admin', password: '' });
   const [token, setToken] = useState('');
+  const [uploadMetadata, setUploadMetadata] = useState({ policy_name: '', insurer: '' });
+  const [editingPolicy, setEditingPolicy] = useState(null);
 
   const fetchPolicies = useCallback(async () => {
     if (!token) return;
@@ -68,6 +70,8 @@ const AdminPanel = () => {
     setLoading(true);
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('policy_name', uploadMetadata.policy_name || 'Unknown');
+    formData.append('insurer', uploadMetadata.insurer || 'Unknown');
 
     try {
       const response = await fetch('http://localhost:8000/admin/upload-policy', {
@@ -79,6 +83,7 @@ const AdminPanel = () => {
       if (response.ok) {
         setMessage({ type: 'success', text: 'Policy uploaded and indexed successfully!' });
         setFile(null);
+        setUploadMetadata({ policy_name: '', insurer: '' });
         e.target.reset();
         fetchPolicies();
       } else {
@@ -92,9 +97,38 @@ const AdminPanel = () => {
     }
   };
 
+  const handleUpdateMetadata = async (source) => {
+    if (!token || !editingPolicy) return;
+
+    try {
+      const response = await fetch(`http://localhost:8000/admin/update-policy/${source}`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          policy_name: editingPolicy.policy_name,
+          insurer: editingPolicy.insurer
+        })
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Metadata updated successfully!' });
+        setEditingPolicy(null);
+        fetchPolicies();
+      } else {
+        const err = await response.json();
+        setMessage({ type: 'error', text: err.detail || 'Update failed' });
+      }
+    } catch (error) { 
+      setMessage({ type: 'error', text: 'Network error during update' });
+    }
+  };
+
   const handleDelete = async (fileName) => {
     if (!token) return;
-    if (!window.confirm(`Are you sure you want to delete ${fileName}? This will remove all embeddings from the vector DB.`)) return;
+    if (!window.confirm(`Are you sure you want to delete ${fileName}? This will remove all embeddings from the vector DB immediately.`)) return;
 
     try {
       const response = await fetch(`http://localhost:8000/admin/delete-policy/${fileName}`, {
@@ -168,15 +202,36 @@ const AdminPanel = () => {
 
         {/* Upload Section */}
         <div className="admin-section">
-          <h3>Upload New Policy (PDF)</h3>
+          <h3>Upload New Policy (PDF, JSON, TXT)</h3>
           <form onSubmit={handleFileUpload} className="upload-form">
-            <input 
-              type="file" 
-              accept=".pdf" 
-              onChange={(e) => setFile(e.target.files[0])}
-              required
-            />
-            <button type="submit" disabled={loading || !file}>
+            <div className="field-group">
+              <label>Policy File</label>
+              <input 
+                type="file" 
+                accept=".pdf,.json,.txt" 
+                onChange={(e) => setFile(e.target.files[0])}
+                required
+              />
+            </div>
+            <div className="field-group">
+              <label>Policy Name</label>
+              <input 
+                type="text" 
+                value={uploadMetadata.policy_name}
+                onChange={(e) => setUploadMetadata({...uploadMetadata, policy_name: e.target.value})}
+                placeholder="e.g. Star Health Senior Citizens"
+              />
+            </div>
+            <div className="field-group">
+              <label>Insurer</label>
+              <input 
+                type="text" 
+                value={uploadMetadata.insurer}
+                onChange={(e) => setUploadMetadata({...uploadMetadata, insurer: e.target.value})}
+                placeholder="e.g. Star Health Insurance"
+              />
+            </div>
+            <button type="submit" disabled={loading || !file} className="admin-toggle-btn">
               {loading ? 'Uploading & Indexing...' : 'Upload & Process'}
             </button>
           </form>
@@ -193,20 +248,51 @@ const AdminPanel = () => {
                 <thead>
                   <tr>
                     <th>File Name</th>
+                    <th>Upload Date</th>
+                    <th>Type</th>
+                    <th>Policy Name</th>
+                    <th>Insurer</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {policies.map((p, index) => (
                     <tr key={index}>
-                      <td className="font-bold">{p}</td>
+                      <td className="font-bold">{p.source}</td>
+                      <td style={{fontSize: '0.85em'}}>{p.upload_date}</td>
+                      <td><span className={`tag ${p.file_type.toLowerCase()}`}>{p.file_type}</span></td>
                       <td>
-                        <button 
-                          className="delete-btn" 
-                          onClick={() => handleDelete(p)}
-                        >
-                          Delete Completely
-                        </button>
+                        {editingPolicy?.source === p.source ? (
+                          <input 
+                            type="text" 
+                            value={editingPolicy.policy_name} 
+                            onChange={(e) => setEditingPolicy({...editingPolicy, policy_name: e.target.value})}
+                          />
+                        ) : p.policy_name}
+                      </td>
+                      <td>
+                        {editingPolicy?.source === p.source ? (
+                          <input 
+                            type="text" 
+                            value={editingPolicy.insurer} 
+                            onChange={(e) => setEditingPolicy({...editingPolicy, insurer: e.target.value})}
+                          />
+                        ) : p.insurer}
+                      </td>
+                      <td>
+                        <div style={{display: 'flex', gap: '5px'}}>
+                          {editingPolicy?.source === p.source ? (
+                            <>
+                              <button className="admin-toggle-btn" onClick={() => handleUpdateMetadata(p.source)}>Save</button>
+                              <button className="delete-btn" onClick={() => setEditingPolicy(null)}>Cancel</button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="admin-toggle-btn" onClick={() => setEditingPolicy(p)}>Edit</button>
+                              <button className="delete-btn" onClick={() => handleDelete(p.source)}>Delete</button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
