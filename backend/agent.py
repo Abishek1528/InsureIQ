@@ -63,6 +63,32 @@ OUTPUT STRUCTURE (Follow this exact order):
    - Transparent reasoning with source citations.
 """
 
+    def _get_chat_system_prompt(self) -> str:
+        return """
+You are a senior insurance AI assistant. Your goal is to provide personalized, contextual, and grounded answers about insurance policies.
+
+USER PROFILE (MANDATORY CONTEXT):
+Use these details to personalize your response:
+- Age: {age}
+- Gender: {gender}
+- Income: {income}
+- Dependents: {dependents}
+- Medical History: {medical_history}
+- Location: {location}
+
+STRICT RULES:
+1. Grounding: Use ONLY the provided "Retrieved Policy Context" for factual information.
+2. Personalization: ALWAYS reference the user's profile to explain how the policy details affect them specifically.
+3. No Hallucinations: If info is missing in the context, say "Not mentioned in policy".
+4. Answer Style: 
+   - Clear, conversational, and personalized.
+   - 3–6 sentences max.
+   - Include reasoning.
+5. Tone: "Co-pay is the portion you pay during a claim. Since you have diabetes, a higher co-pay could increase your out-of-pocket expenses..."
+
+Your response must be a single string containing your answer.
+"""
+
     def _validate_profile(self, user_profile: Dict[str, Any]) -> bool:
         """Checks if all mandatory fields are present in the user profile."""
         return all(field in user_profile and user_profile[field] is not None for field in self.REQUIRED_PROFILE_FIELDS)
@@ -104,8 +130,73 @@ OUTPUT STRUCTURE (Follow this exact order):
             })
             return response
         except Exception as e:
-            logger.error(f"Agent execution failed: {str(e)}")
-            return f"An error occurred during agent execution: {str(e)}"
+            logger.error(f"Ranking execution failed: {str(e)}")
+            return f"An error occurred during ranking: {str(e)}"
+
+    def chat_with_user(self, query: str, user_profile: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Executes personalized conversational chat logic using LangChain and Groq.
+        """
+        # 1. Retrieve Relevant Chunks
+        logger.info(f"Retrieving context for chat query: {query}")
+        chunks = retrieve_policy_chunks(query)
+        
+        if not chunks:
+            return {
+                "answer": "No relevant policy information found.",
+                "sources": []
+            }
+
+        # 2. Build Context String
+        context = build_context(chunks)
+
+        # 3. Prepare Prompt
+        # Format the system prompt with user profile details
+        chat_system_prompt = self._get_chat_system_prompt().format(
+            age=user_profile.get("age", "N/A"),
+            gender=user_profile.get("gender", "N/A"),
+            income=user_profile.get("income", "N/A"),
+            dependents=user_profile.get("dependents", "N/A"),
+            medical_history=user_profile.get("medical_history", "N/A"),
+            location=user_profile.get("location", "N/A")
+        )
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", chat_system_prompt),
+            ("human", "Retrieved Policy Context:\n{context}\n\nUser Question: {query}")
+        ])
+
+        # 4. Execute Chain
+        try:
+            logger.info("Generating personalized chat response...")
+            chain = prompt | self.llm | StrOutputParser()
+            answer = chain.invoke({
+                "context": context,
+                "query": query
+            })
+
+            # 5. Extract Sources
+            sources = []
+            seen_sources = set()
+            for chunk in chunks:
+                source_key = f"{chunk['source']}_{chunk['page']}"
+                if source_key not in seen_sources:
+                    sources.append({
+                        "source": chunk['source'],
+                        "page": chunk['page']
+                    })
+                    seen_sources.add(source_key)
+
+            return {
+                "answer": answer,
+                "sources": sources
+            }
+        except Exception as e:
+            logger.error(f"Chat execution failed: {str(e)}")
+            return {
+                "answer": f"An error occurred during chat: {str(e)}",
+                "sources": []
+            }
 
 if __name__ == "__main__":
     # Set encoding for Windows console

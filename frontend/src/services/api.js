@@ -18,9 +18,13 @@ const transformPayload = (formData) => {
         "Active": 0
     };
 
+    // 3. Generate session ID for memory persistence
+    const session_id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     return {
+        session_id: session_id,
         age: parseInt(formData.age),
-        gender: "Not Specified", // Default requirement
+        gender: "Not Specified",
         income: incomeMap[formData.income_band] || 0,
         dependents: lifestyleMap[formData.lifestyle] ?? 0,
         medical_history: formData.pre_existing_conditions || "None",
@@ -49,9 +53,36 @@ export const getRecommendation = async (formData) => {
             throw new Error(errorData.detail || "Failed to get recommendations");
         }
 
-        return await response.json();
+        const data = await response.json();
+        // Return both the recommendation data AND the session_id used
+        return { ...data, session_id: payload.session_id };
     } catch (error) {
         console.error("API Error:", error);
+        throw error;
+    }
+};
+
+export const sendChatMessage = async (sessionId, query) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                query: query
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || "Failed to send message");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Chat Error:", error);
         throw error;
     }
 };
