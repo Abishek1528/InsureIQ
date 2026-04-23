@@ -16,8 +16,13 @@ from utils.security import (
     get_password_hash
 )
 # Assuming these exist in their respective modules based on api.py imports
+from datetime import datetime
 from ingestion import ingest_policy
-from retrieval import list_indexed_policies, delete_policy_from_db
+from retrieval import list_indexed_policies, delete_policy_from_db, update_policy_metadata
+
+class MetadataUpdate(BaseModel):
+    policy_name: str
+    insurer: str
 
 logger = logging.getLogger("AdminRoutes")
 
@@ -84,13 +89,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @router.post("/upload-policy")
 async def upload_policy(
     file: UploadFile = File(...),
+    policy_name: str = "Unknown",
+    insurer: str = "Unknown",
     current_admin: str = Depends(get_current_admin)
 ):
     """
-    Protected endpoint to upload insurance policy PDFs.
+    Protected endpoint to upload insurance policy files (PDF, JSON, TXT).
     """
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    allowed_exts = {".pdf", ".json", ".txt"}
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in allowed_exts:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_ext}")
     
     file_id = str(uuid.uuid4())[:8]
     safe_filename = f"{file_id}_{file.filename}"
@@ -101,17 +110,40 @@ async def upload_policy(
             shutil.copyfileobj(file.file, buffer)
         
         logger.info(f"File saved to {file_path}. Starting ingestion...")
-        ingest_policy(str(file_path))
+        
+        metadata = {
+            "policy_name": policy_name,
+            "insurer": insurer,
+            "upload_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "file_type": file_ext.upper()[1:]
+        }
+        
+        ingest_policy(str(file_path), metadata=metadata)
         
         return {
             "message": "Policy uploaded and indexed successfully",
-            "file_name": safe_filename
+            "file_name": safe_filename,
+            "metadata": metadata
         }
     except Exception as e:
         logger.error(f"Upload/Ingestion failed: {str(e)}")
         if file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=500, detail=f"Failed to process policy: {str(e)}")
+
+@router.put("/update-policy/{source}")
+async def update_policy(
+    source: str,
+    metadata: MetadataUpdate,
+    current_admin: str = Depends(get_current_admin)
+):
+    """
+    Protected endpoint to update policy metadata (name, insurer).
+    """
+    success = update_policy_metadata(source, metadata.dict())
+    if not success:
+        raise HTTPException(status_code=404, detail="Policy not found or update failed")
+    return {"message": "Policy metadata updated successfully"}
 
 @router.get("/policies")
 async def list_policies(current_admin: str = Depends(get_current_admin)):
