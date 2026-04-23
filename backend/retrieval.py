@@ -124,6 +124,50 @@ def build_context(chunks: List[Dict[str, Any]]) -> str:
 
     return "\n\n".join(context_parts)
 
+def delete_policy_from_db(file_name: str) -> bool:
+    """
+    Deletes all chunks associated with a specific file from the vector store.
+    """
+    vector_store = get_vector_store()
+    if not vector_store:
+        logger.error("Failed to retrieve vector store for deletion.")
+        return False
+
+    try:
+        # ChromaDB delete using metadata filter
+        logger.info(f"Deleting embeddings for source: {file_name}")
+        vector_store.delete(where={"source": file_name})
+        logger.info(f"Successfully deleted all chunks for {file_name} from ChromaDB.")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting {file_name} from ChromaDB: {str(e)}")
+        return False
+
+def list_indexed_policies() -> List[str]:
+    """
+    Returns a list of unique policy file names indexed in the vector store.
+    """
+    vector_store = get_vector_store()
+    if not vector_store:
+        return []
+
+    try:
+        # Get all documents to extract unique sources
+        # In a very large DB, this might be slow; but for policy PDFs, it's efficient enough
+        data = vector_store.get()
+        if not data or 'metadatas' not in data:
+            return []
+        
+        sources = set()
+        for meta in data['metadatas']:
+            if 'source' in meta:
+                sources.add(meta['source'])
+        
+        return sorted(list(sources))
+    except Exception as e:
+        logger.error(f"Error listing policies from ChromaDB: {str(e)}")
+        return []
+
 if __name__ == "__main__":
     # Set encoding for Windows console
     import sys
