@@ -47,9 +47,14 @@ DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "admin-secret-token")
 
+# In-memory session store
+# Key: session_id, Value: {"user_profile": Dict, "chat_history": List}
+session_store: Dict[str, Dict[str, Any]] = {}
+
 # --- Pydantic Models ---
 
 class UserProfile(BaseModel):
+    session_id: str = Field(..., min_length=1)
     age: int = Field(..., gt=0, lt=120)
     gender: str = Field(..., min_length=1)
     income: float = Field(..., ge=0)
@@ -58,6 +63,7 @@ class UserProfile(BaseModel):
     location: str = Field(..., min_length=1)
 
 class ChatQuery(BaseModel):
+    session_id: str = Field(..., min_length=1)
     query: str = Field(..., min_length=1)
 
 class SourceInfo(BaseModel):
@@ -242,6 +248,13 @@ async def recommend_policy(profile: UserProfile):
         if not explanation_text:
             explanation_text = f"Based on your profile (age {profile.age}, {profile.gender}, {profile.location}), the recommended policy offers the best balance of coverage and affordability. The waiting period and benefits align well with your medical history of {profile.medical_history}."
         
+        # Store profile in session memory
+        session_store[profile.session_id] = {
+            "user_profile": profile.dict(),
+            "chat_history": []
+        }
+        logger.info(f"Stored profile for session {profile.session_id}")
+        
         return RecommendationResponse(
             comparison_table=comparison_items,
             coverage_table=coverage_items,
@@ -261,32 +274,30 @@ async def chat_with_policy(query_data: ChatQuery):
     Answer user queries about policies using conversational RAG.
     """
     try:
-        # 1. Retrieve context
-        chunks = retrieve_policy_chunks(query_data.query)
-        if not chunks:
+        # Check if session exists and has a profile
+        session = session_store.get(query_data.session_id)
+        if not session or "user_profile" not in session:
             return ChatResponse(
-                answer="I'm sorry, I couldn't find any information in the policy related to your question.",
+                answer="User profile not found. Please complete recommendation first.",
                 sources=[]
             )
             
-        # 2. Build context and call agent logic
-        # Re-using the simplified logic from app.py but returning sources
+        user_profile = session["user_profile"]
+        
+        # Call personalized chat logic from agent
         agent = InsuranceAgent()
-        answer = agent.run(query_data.query, {
-            "age": 0, "gender": "unknown", "income": 0, 
-            "dependents": 0, "medical_history": "unknown", "location": "unknown"
+        result = agent.chat_with_user(query_data.query, user_profile)
+        
+        # Update chat history (optional but requested)
+        session["chat_history"].append({
+            "query": query_data.query,
+            "answer": result["answer"]
         })
         
-        # 3. Extract unique sources
-        sources = []
-        seen = set()
-        for chunk in chunks:
-            src_key = f"{chunk['source']}_{chunk['page']}"
-            if src_key not in seen:
-                sources.append(SourceInfo(source=chunk['source'], page=chunk['page']))
-                seen.add(src_key)
+        # Convert source dicts to SourceInfo objects
+        sources = [SourceInfo(**s) for s in result["sources"]]
                 
-        return ChatResponse(answer=answer, sources=sources)
+        return ChatResponse(answer=result["answer"], sources=sources)
         
     except Exception as e:
         logger.error(f"Chat failed: {str(e)}")
