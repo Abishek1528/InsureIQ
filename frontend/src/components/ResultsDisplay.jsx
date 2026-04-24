@@ -31,11 +31,21 @@ const ResultsDisplay = ({ data, loading, error }) => {
 
     return (
         <div className="results-wrapper">
+            {/* Section 0: Top Best Fit Policy */}
+            <div className="section-card best-fit-highlight">
+                <div className="best-fit-badge">TOP RECOMMENDATION</div>
+                <p className="best-fit-text">
+                    {data.best_fit_policy || (data.comparison_table?.[0] ? 
+                        `The ${data.comparison_table[0].policy_name} from ${data.comparison_table[0].insurer} is your best match.` : 
+                        "Analyzing the best policy for your profile...")}
+                </p>
+            </div>
+
             {/* Section 1: Comparison Table */}
-            <ComparisonTable data={data.comparison_table} />
+            <ComparisonTable data={data.comparison_table} title="1. PEER COMPARISON" />
 
             {/* Section 2: Coverage Detail Table */}
-            <CoverageTable data={data.coverage_detail_table} />
+            <CoverageTable data={data.coverage_detail_table} title="2. COVERAGE DETAILS" />
 
             {/* Section 3: Why This Policy */}
             <div className="section-card">

@@ -82,6 +82,7 @@ class CoverageDetailItem(BaseModel):
     details: str
 
 class RecommendationResponse(BaseModel):
+    best_fit_policy: str
     comparison_table: List[ComparisonItem]
     coverage_detail_table: List[CoverageDetailItem]
     why_this_policy: str
@@ -106,6 +107,7 @@ async def recommend_policy(profile: UserProfile):
             raise HTTPException(status_code=404, detail="No policy data found in the system.")
         
         # Simple parsing logic
+        best_fit_policy = ""
         comparison_items = []
         coverage_detail_items = []
         why_this_policy = ""
@@ -114,7 +116,10 @@ async def recommend_policy(profile: UserProfile):
         current_section = ""
         
         for i, line in enumerate(lines):
-            if "PEER COMPARISON TABLE" in line:
+            if "BEST FIT POLICY" in line:
+                current_section = "best_fit"
+                continue
+            elif "PEER COMPARISON TABLE" in line:
                 current_section = "comparison"
                 continue
             elif "COVERAGE DETAIL TABLE" in line:
@@ -125,6 +130,12 @@ async def recommend_policy(profile: UserProfile):
                 # The rest of the output is the explanation
                 why_this_policy = "\n".join(lines[i+1:]).strip()
                 break
+            
+            if current_section == "best_fit" and line.strip() and not line.startswith("-") and not line.startswith("1."):
+                best_fit_policy = line.strip()
+            elif current_section == "best_fit" and line.strip().startswith("-"):
+                # Sometimes the model might put it in a bullet
+                best_fit_policy = line.strip("- ").strip()
             
             if current_section == "comparison" and "|" in line and "---" not in line and "Rank" not in line:
                 # Remove leading/trailing pipes and split
@@ -175,6 +186,11 @@ async def recommend_policy(profile: UserProfile):
         if not why_this_policy:
             why_this_policy = f"Based on your profile (age {profile.age}, medical history of {profile.medical_history}), this policy offers the best balance of coverage and affordability. It explicitly addresses your concerns regarding waiting periods for pre-existing conditions while fitting your income bracket."
 
+        if not best_fit_policy and comparison_items:
+            best_fit_policy = f"The {comparison_items[0].policy_name} from {comparison_items[0].insurer} is your top recommendation based on your profile."
+        elif not best_fit_policy:
+            best_fit_policy = "We have identified the Standard Health Plan as a suitable starting point for your insurance needs."
+
         # Store profile in session memory
         session_store[profile.session_id] = {
             "user_profile": profile.dict(),
@@ -182,6 +198,7 @@ async def recommend_policy(profile: UserProfile):
         }
         
         return RecommendationResponse(
+            best_fit_policy=best_fit_policy,
             comparison_table=comparison_items,
             coverage_detail_table=coverage_detail_items,
             why_this_policy=why_this_policy

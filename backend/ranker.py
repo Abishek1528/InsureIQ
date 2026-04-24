@@ -52,7 +52,11 @@ STRICT RULES:
 
 OUTPUT FORMAT (STRICT):
 
-1. PEER COMPARISON TABLE:
+1. BEST FIT POLICY:
+- A single sentence declaring the top recommended policy and its primary advantage.
+- Example: "The [Policy Name] from [Insurer] is your best fit because it offers [Specific Benefit] tailored to your [Profile Field]."
+
+2. PEER COMPARISON TABLE:
 | Rank | Policy Name | Insurer | Premium (Rs/yr) | Cover Amount | Waiting Period | Key Benefit | Suitability Score |
 |------|------------|---------|-----------------|--------------|----------------|-------------|-------------------|
 - Populated from uploaded documents.
@@ -60,20 +64,20 @@ OUTPUT FORMAT (STRICT):
 - Rank 2 and 3 are the alternatives.
 - You MUST show at least 3 rows if the context contains information for multiple policies.
 
-2. COVERAGE DETAIL TABLE:
+3. COVERAGE DETAIL TABLE:
 | Category | Details |
 |----------|---------|
 - Single-policy breakdown for the TOP RECOMMENDED policy only.
 - Categories MUST include: Inclusions, Exclusions, Sub-limits, Co-pay %, Claim type (cashless / reimbursement).
 - Data MUST be sourced from the policy document via RAG.
 
-3. WHY THIS POLICY:
+4. WHY THIS POLICY:
 - Detailed personalised explanation (STRICTLY 150-250 words).
 - Reference at least 3 profile fields (e.g., age, medical_history, income).
 - Connect policy features to these fields.
 - Explain why this policy is superior to the alternatives mentioned in the table.
 
-4. EDGE CASE HANDLING:
+5. EDGE CASE HANDLING:
 - If retrieved_chunks is empty: "No policy data available for ranking."
 """
 
