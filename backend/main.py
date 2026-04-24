@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import components
-from agent import InsuranceAgent
+from agent import AarogyaAgent
 from ranker import PolicyRanker
 from routes.admin import router as admin_router
 
@@ -49,11 +49,11 @@ session_store: Dict[str, Dict[str, Any]] = {}
 
 class UserProfile(BaseModel):
     session_id: str = Field(..., min_length=1)
+    full_name: str = Field(..., min_length=1)
     age: int = Field(..., gt=0, lt=120)
-    gender: str = Field(..., min_length=1)
-    income: float = Field(..., ge=0)
-    dependents: int = Field(..., ge=0)
+    lifestyle: str = Field(..., min_length=1)
     medical_history: str = Field(..., min_length=1)
+    income: str = Field(..., min_length=1)
     location: str = Field(..., min_length=1)
 
 class ChatQuery(BaseModel):
@@ -95,7 +95,7 @@ async def recommend_policy(profile: UserProfile):
     """
     try:
         ranker = PolicyRanker()
-        query = f"Find best insurance policies for a {profile.age} year old {profile.gender} in {profile.location} with medical history of {profile.medical_history} and {profile.dependents} dependents."
+        query = f"Find best insurance policies for {profile.full_name}, a {profile.age} year old with a {profile.lifestyle} lifestyle in {profile.location}. Income: {profile.income}, Medical History: {profile.medical_history}."
         
         logger.info(f"Generating recommendations for session: {profile.session_id}")
         raw_output = ranker.rank_policies(query, profile.dict())
@@ -200,15 +200,15 @@ async def chat_with_policy(query_data: ChatQuery):
     """
     try:
         session = session_store.get(query_data.session_id)
-        if not session or "user_profile" not in session:
-            return ChatResponse(
-                answer="User profile not found. Please complete recommendation first.",
-                sources=[]
-            )
-            
-        user_profile = session["user_profile"]
-        agent = InsuranceAgent()
-        result = agent.chat_with_user(query_data.query, user_profile)
+        user_profile = session.get("user_profile") if session else None
+        if not user_profile or not isinstance(user_profile, dict):
+            logger.error(f"Invalid user profile in session: {user_profile}")
+            raise HTTPException(status_code=400, detail="User profile not found. Please submit the form first.")
+
+        agent = AarogyaAgent()
+        logger.info(f"Processing chat for session: {query_data.session_id}")
+        # Pass a copy to avoid any side effects
+        result = agent.chat_with_user(query_data.query, dict(user_profile))
         
         session["chat_history"].append({
             "query": query_data.query,

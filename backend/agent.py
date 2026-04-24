@@ -12,17 +12,17 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger("InsuranceAgent")
+logger = logging.getLogger("AarogyaAgent")
 
 # Load environment variables
 load_dotenv()
 
-class InsuranceAgent:
+class AarogyaAgent:
     """
     Intelligent Agent for insurance policy comparison and recommendation.
     """
     
-    REQUIRED_PROFILE_FIELDS = ["age", "gender", "income", "dependents", "medical_history", "location"]
+    REQUIRED_PROFILE_FIELDS = ["full_name", "age", "lifestyle", "medical_history", "income", "location"]
 
     def __init__(self, model_name: str = "llama-3.3-70b-versatile"):
         self.llm = ChatGroq(
@@ -38,11 +38,12 @@ You are a senior insurance AI agent. Your goal is to compare insurance policies 
 
 STRICT RULES:
 1. You MUST use ALL 6 user profile fields in your reasoning and suitability table:
-   - age, gender, income, dependents, medical_history, location
+   - full_name, age, lifestyle, medical_history, income, location
 2. You MUST ONLY use information provided in the "Retrieved Policy Context".
 3. DO NOT hallucinate, assume, or use external knowledge about insurance policies.
 4. If a specific detail (like premium, waiting period, etc.) is missing in the context, explicitly state "Not mentioned in policy".
 5. Citations are MANDATORY. Use format: "According to [Source, Page X]..."
+6. Address the user by their full_name to personalize the experience.
 
 OUTPUT STRUCTURE (Follow this exact order):
 1. POLICY COMPARISON TABLE:
@@ -69,10 +70,10 @@ You are a senior insurance AI assistant named AarogyaAid. Your goal is to provid
 
 USER PROFILE (MANDATORY CONTEXT):
 Use these details to personalize your response and generate realistic scenarios:
+- Name: {full_name}
 - Age: {age}
-- Gender: {gender}
+- Lifestyle: {lifestyle}
 - Income: {income}
-- Dependents: {dependents}
 - Medical History: {medical_history}
 - Location: {location}
 
@@ -86,7 +87,7 @@ STRICT RULES:
    - Clear, conversational, and personalized.
    - 4–8 sentences.
    - Include reasoning.
-7. Tone: "Since you mentioned living in {location} with a history of {medical_history}, it's important to note that co-pay (which is the portion you pay during a claim) might work like this for you..."
+7. Tone: "Hi {full_name}, since you mentioned living in {location} with a history of {medical_history}, it's important to note that co-pay (which is the portion you pay during a claim) might work like this for you..."
 
 Your response must be a single string containing your answer.
 """
@@ -118,18 +119,27 @@ Your response must be a single string containing your answer.
         # 4. Prepare Prompt
         prompt = ChatPromptTemplate.from_messages([
             ("system", self.system_prompt),
-            ("human", "User Profile:\n{user_profile}\n\nRetrieved Policy Context:\n{context}\n\nUser Question: {query}")
+            ("human", "User Profile:\nName: {full_name}, Age: {age}, Lifestyle: {lifestyle}, Income: {income}, Medical History: {medical_history}, Location: {location}\n\nRetrieved Policy Context:\n{context}\n\nUser Question: {query}")
         ])
 
         # 5. Execute Chain
         try:
             logger.info("Generating agent response...")
             chain = prompt | self.llm | StrOutputParser()
-            response = chain.invoke({
-                "user_profile": user_profile,
+            
+            # Pass individual variables instead of the whole dict to avoid formatting issues
+            invoke_params = {
                 "context": context,
-                "query": query
-            })
+                "query": query,
+                "full_name": str(user_profile.get("full_name", "User")),
+                "age": str(user_profile.get("age", "N/A")),
+                "lifestyle": str(user_profile.get("lifestyle", "N/A")),
+                "income": str(user_profile.get("income", "N/A")),
+                "medical_history": str(user_profile.get("medical_history", "N/A")),
+                "location": str(user_profile.get("location", "N/A"))
+            }
+            
+            response = chain.invoke(invoke_params)
             return response
         except Exception as e:
             logger.error(f"Ranking execution failed: {str(e)}")
@@ -141,8 +151,9 @@ Your response must be a single string containing your answer.
         """
         # 1. Retrieve Relevant Chunks
         logger.info(f"Retrieving context for chat query: {query}")
+        logger.info(f"User Profile Keys: {list(user_profile.keys())}")
         chunks = retrieve_policy_chunks(query)
-        
+
         if not chunks:
             return {
                 "answer": "No relevant policy information found.",
@@ -153,18 +164,9 @@ Your response must be a single string containing your answer.
         context = build_context(chunks)
 
         # 3. Prepare Prompt
-        # Format the system prompt with user profile details
-        chat_system_prompt = self._get_chat_system_prompt().format(
-            age=user_profile.get("age", "N/A"),
-            gender=user_profile.get("gender", "N/A"),
-            income=user_profile.get("income", "N/A"),
-            dependents=user_profile.get("dependents", "N/A"),
-            medical_history=user_profile.get("medical_history", "N/A"),
-            location=user_profile.get("location", "N/A")
-        )
-
+        # Use a more explicit template definition to avoid any LangChain variable detection issues
         prompt = ChatPromptTemplate.from_messages([
-            ("system", chat_system_prompt),
+            ("system", self._get_chat_system_prompt()),
             ("human", "Retrieved Policy Context:\n{context}\n\nUser Question: {query}")
         ])
 
@@ -172,10 +174,22 @@ Your response must be a single string containing your answer.
         try:
             logger.info("Generating personalized chat response...")
             chain = prompt | self.llm | StrOutputParser()
-            answer = chain.invoke({
+
+            # Pass all profile fields + context + query to LangChain
+            # Ensure we have all 6 fields plus context and query
+            invoke_params = {
                 "context": context,
-                "query": query
-            })
+                "query": query,
+                "full_name": str(user_profile.get("full_name", "User")),
+                "age": str(user_profile.get("age", "N/A")),
+                "lifestyle": str(user_profile.get("lifestyle", "N/A")),
+                "income": str(user_profile.get("income", "N/A")),
+                "medical_history": str(user_profile.get("medical_history", "N/A")),
+                "location": str(user_profile.get("location", "N/A"))
+            }
+
+            logger.info(f"Invoking chain with params: {list(invoke_params.keys())}")
+            answer = chain.invoke(invoke_params)
 
             # 5. Extract Sources
             sources = []
@@ -208,14 +222,14 @@ if __name__ == "__main__":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
     # Example Usage
-    agent = InsuranceAgent()
+    agent = AarogyaAgent()
     
-    # 1. Sample User Profile
+    # 1. Sample User Profile (Aligned with 6 required fields)
     sample_profile = {
+        "full_name": "John Doe",
         "age": 35,
-        "gender": "Male",
+        "lifestyle": "Moderate",
         "income": "75,000 USD/year",
-        "dependents": "Spouse and 2 children",
         "medical_history": "No major illnesses, occasional back pain",
         "location": "New York, USA"
     }

@@ -26,8 +26,13 @@ InsureIQ is an AI-powered insurance advisor that:
 ## Core Features
 
 ### 1. Profile-Based Recommendation
-User inputs (6 key fields):
-- **Age**, **Gender**, **Income**, **Dependents**, **Medical History**, **Location**.
+User inputs (6 key fields as per brief):
+- **Full Name**: Personalizes all agent responses and greetings.
+- **Age**: Determines premium bracket and waiting period sensitivity.
+- **Lifestyle**: (Sedentary/Moderate/Active/Athlete) Adjusts risk weighting.
+- **Pre-existing Conditions**: Primary driver for exclusion matching and waiting periods.
+- **Annual Income**: Sets coverage amount targets and affordability thresholds.
+- **City / Tier**: Adjusts network hospital availability and claim estimates.
 These inputs drive all downstream AI reasoning and personalization.
 
 ### 2. Policy Comparison (Best Fit Output)

@@ -22,7 +22,7 @@ class PolicyRanker:
     Intelligent Ranker and Recommender for insurance policies using human-like reasoning.
     """
     
-    REQUIRED_PROFILE_FIELDS = ["age", "gender", "income", "dependents", "medical_history", "location"]
+    REQUIRED_PROFILE_FIELDS = ["full_name", "age", "lifestyle", "medical_history", "income", "location"]
 
     def __init__(self, model_name: str = "llama-3.3-70b-versatile"):
         self.llm = ChatGroq(
@@ -43,11 +43,12 @@ TONE & EMPATHY (CRITICAL):
 
 STRICT RULES:
 1. You MUST use ALL 6 user profile fields in your reasoning:
-   - age, gender, income, dependents, medical_history, location
+   - full_name, age, lifestyle, medical_history, income, location
 2. You MUST identify and compare ALL distinct policies found in the "Retrieved Policy Context". You must show the recommended policy vs AT LEAST 2 alternatives (minimum 3 policies total in the table).
 3. DO NOT hallucinate or assume policy details. If a detail is missing, say "Not mentioned in policy".
 4. DO NOT use external knowledge. Only use information from the provided "Retrieved Policy Context".
 5. Personalised explanation (WHY THIS POLICY) MUST be between 150-250 words and connect policy features explicitly to at least 3 of the 6 user profile fields. Use a professional, persuasive, yet empathetic tone.
+6. Address the user by their full_name in the introduction and the "WHY THIS POLICY" section to build trust.
 
 OUTPUT FORMAT (STRICT):
 
@@ -85,6 +86,7 @@ OUTPUT FORMAT (STRICT):
         Executes the ranking logic: Validation -> Retrieval -> Reasoning -> Structured Output.
         """
         # 1. Validate User Profile
+        logger.info(f"Ranking Profile Keys: {list(user_profile.keys())}")
         if not self._validate_profile(user_profile):
             logger.error(f"Incomplete profile provided: {user_profile}")
             return "Incomplete user profile. Cannot proceed."
@@ -103,18 +105,28 @@ OUTPUT FORMAT (STRICT):
         # 4. Prepare Prompt
         prompt = ChatPromptTemplate.from_messages([
             ("system", self.system_prompt),
-            ("human", "User Profile:\n{user_profile}\n\nRetrieved Policy Context:\n{context}\n\nRanking Request: {query}")
+            ("human", "User Profile:\nName: {full_name}, Age: {age}, Lifestyle: {lifestyle}, Income: {income}, Medical History: {medical_history}, Location: {location}\n\nRetrieved Policy Context:\n{context}\n\nRanking Request: {query}")
         ])
 
         # 5. Execute Chain
         try:
-            logger.info("Generating policy rankings...")
+            logger.info("Generating policy ranking and recommendation...")
             chain = prompt | self.llm | StrOutputParser()
-            response = chain.invoke({
-                "user_profile": user_profile,
+
+            # Pass individual variables to avoid formatting errors
+            invoke_params = {
                 "context": context,
-                "query": query
-            })
+                "query": query,
+                "full_name": str(user_profile.get("full_name", "User")),
+                "age": str(user_profile.get("age", "N/A")),
+                "lifestyle": str(user_profile.get("lifestyle", "N/A")),
+                "income": str(user_profile.get("income", "N/A")),
+                "medical_history": str(user_profile.get("medical_history", "N/A")),
+                "location": str(user_profile.get("location", "N/A"))
+            }
+
+            logger.info(f"Invoking ranking chain with params: {list(invoke_params.keys())}")
+            response = chain.invoke(invoke_params)
             return response
         except Exception as e:
             logger.error(f"Ranking execution failed: {str(e)}")
