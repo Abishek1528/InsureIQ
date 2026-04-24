@@ -1,11 +1,11 @@
 import React from 'react';
 
-const CoverageTable = ({ data }) => {
+const CoverageTable = ({ data, title }) => {
     if (!data || data.length === 0) return null;
 
     return (
         <div className="section-card">
-            <h3>2. COVERAGE DETAIL TABLE (FROM RAG)</h3>
+            <h3>{title || "2. COVERAGE DETAILS"}</h3>
             <div className="table-responsive">
                 <table className="data-table">
                     <thead>

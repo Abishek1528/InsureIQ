@@ -1,13 +1,13 @@
 import React from 'react';
 
-const ComparisonTable = ({ data }) => {
+const ComparisonTable = ({ data, title }) => {
     if (!data || data.length === 0) return null;
 
     const renderValue = (val) => val && val.trim() !== "" ? val : "Not mentioned";
 
     return (
         <div className="section-card">
-            <h3>1. COMPARISON TABLE</h3>
+            <h3>{title || "1. PEER COMPARISON"}</h3>
             <div className="table-responsive">
                 <table className="data-table">
                     <thead>
