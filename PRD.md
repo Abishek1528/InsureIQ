@@ -70,8 +70,8 @@
    - Suggests top 2–3 plans based on user profile  
    - Prioritized because users are unable to independently evaluate multiple plans  
 
-2. Structured User Input Form  
-   - Inputs: age, income, city, family size, pre-existing diseases  
+2. Personalized Profile Form  
+   - Captures 6 key inputs (as per brief): **Full Name, Age, Lifestyle, Pre-existing Conditions, Annual Income, and City/Tier**.  
    - Enables personalization instead of generic recommendations  
 
 3. Simplified Policy Explanation  
@@ -110,11 +110,12 @@ The system uses a rule-based filtering and scoring approach to match users with 
 
 ### Input Parameters
 
-* Age  
-* Income  
-* City  
-* Family size  
-* Pre-existing diseases  
+* Full Name
+* Age
+* Lifestyle
+* Pre-existing Conditions
+* Annual Income
+* City/Tier
 
 ---
 

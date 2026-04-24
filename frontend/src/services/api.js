@@ -3,31 +3,16 @@
  * Frontend -> Backend Transformation
  */
 const transformPayload = (formData) => {
-    // 1. Map Income Band to approximate numeric income
-    const incomeMap = {
-        "<3 LPA": 200000,
-        "3–6 LPA": 450000,
-        "6–10 LPA": 800000,
-        "10+ LPA": 1200000
-    };
-
-    // 2. Map Lifestyle to derived dependents
-    const lifestyleMap = {
-        "Sedentary": 2,
-        "Moderate": 1,
-        "Active": 0
-    };
-
-    // 3. Generate session ID for memory persistence
+    // Generate session ID for memory persistence
     const session_id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     return {
         session_id: session_id,
+        full_name: formData.name,
         age: parseInt(formData.age),
-        gender: "Not Specified",
-        income: incomeMap[formData.income_band] || 0,
-        dependents: lifestyleMap[formData.lifestyle] ?? 0,
+        lifestyle: formData.lifestyle,
         medical_history: formData.pre_existing_conditions || "None",
+        income: formData.income_band,
         location: formData.city_tier
     };
 };
